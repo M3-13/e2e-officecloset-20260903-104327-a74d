@@ -7,15 +7,86 @@
       "stack": "python",
       "kind": "server",
       "install": [
-        ["${python}", "-m", "pip", "install", "-q", "-r", "requirements.txt"]
+        [
+          "${python}",
+          "-m",
+          "pip",
+          "install",
+          "-q",
+          "-r",
+          "requirements.txt"
+        ]
       ],
-      "start": ["${python}", "-m", "uvicorn", "app.main:app", "--port", "${PORT}"],
+      "start": [
+        "${python}",
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--port",
+        "${PORT}"
+      ],
       "port": 8000,
       "port_env": "PORT",
-      "health": { "path": "/api/health", "expect_status": [200] },
+      "health": {
+        "path": "/api/health",
+        "expect_status": [
+          200
+        ]
+      },
       "env": {
-        "JWT_SECRET": { "generate": "hex", "bytes": 32 },
-        "FRONTEND_ORIGIN": { "dev": "http://localhost:5173" }
+        "JWT_SECRET": {
+          "generate": "hex",
+          "bytes": 32
+        },
+        "FRONTEND_ORIGIN": {
+          "dev": "http://localhost:5173"
+        }
+      }
+    },
+    {
+      "name": "frontend",
+      "dir": "frontend",
+      "stack": "web-vite",
+      "kind": "server",
+      "install": [
+        [
+          "npm",
+          "ci"
+        ]
+      ],
+      "build": [
+        [
+          "npm",
+          "ci"
+        ],
+        [
+          "npm",
+          "run",
+          "build"
+        ]
+      ],
+      "start": [
+        "npm",
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "${PORT}"
+      ],
+      "port": 5173,
+      "port_env": "PORT",
+      "health": {
+        "path": "/",
+        "expect_status": [
+          200
+        ]
+      },
+      "env": {
+        "VITE_API_BASE": {
+          "dev": "http://localhost:8000"
+        }
       }
     }
   ]
