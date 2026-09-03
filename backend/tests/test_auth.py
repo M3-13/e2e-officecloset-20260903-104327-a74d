@@ -152,6 +152,7 @@ def test_login_rate_limit_returns_429(client):
         json={"email": "alice@example.com", "password": "wrong-password"},
     )
     assert response.status_code == 429
+    assert isinstance(response.json().get("detail"), str)
 
 
 def test_register_rate_limit_returns_429(client):
@@ -166,3 +167,4 @@ def test_register_rate_limit_returns_429(client):
         json={"email": "user6@example.com", "password": PASSWORD},
     )
     assert response.status_code == 429
+    assert isinstance(response.json().get("detail"), str)
