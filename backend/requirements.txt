@@ -1,0 +1,10 @@
+fastapi>=0.133,<0.134
+uvicorn>=0.34,<0.35
+sqlalchemy>=2.0.36,<2.1
+pydantic>=2.10,<2.11
+python-multipart>=0.0.32,<0.0.33
+pyjwt>=2.13,<2.14
+bcrypt>=4.3,<4.4
+slowapi>=0.1.10,<0.2
+pytest>=8.4,<8.5
+httpx>=0.27,<0.28
