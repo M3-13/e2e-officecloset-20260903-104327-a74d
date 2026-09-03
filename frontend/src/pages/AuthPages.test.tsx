@@ -86,6 +86,12 @@ describe("LoginPage", () => {
       if (method === "POST" && path === "/api/auth/login") {
         return authResponse("anna@example.com");
       }
+      if (method === "GET" && path === "/api/wardrobe") {
+        return makeResponse(200, []);
+      }
+      if (method === "GET" && path === "/api/categories") {
+        return makeResponse(200, []);
+      }
       return makeResponse(404, { detail: "not found" });
     });
 
@@ -143,6 +149,12 @@ describe("RegisterPage", () => {
           token_type: "bearer",
           user: { id: 2, email: "neu@example.com" },
         });
+      }
+      if (method === "GET" && path === "/api/wardrobe") {
+        return makeResponse(200, []);
+      }
+      if (method === "GET" && path === "/api/categories") {
+        return makeResponse(200, []);
       }
       return makeResponse(404, { detail: "not found" });
     });
