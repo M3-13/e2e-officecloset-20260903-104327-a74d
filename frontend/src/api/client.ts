@@ -33,14 +33,6 @@ type RequestOptions = Omit<RequestInit, "body"> & {
 };
 
 async function handleResponse<T>(response: Response): Promise<T> {
-  if (response.status === 401) {
-    clearToken();
-    if (window.location.pathname !== "/login") {
-      window.location.assign("/login");
-    }
-    throw new ApiError(401, "Nicht angemeldet");
-  }
-
   if (response.status === 204) {
     return undefined as T;
   }
@@ -53,6 +45,17 @@ async function handleResponse<T>(response: Response): Promise<T> {
     } catch {
       data = text;
     }
+  }
+
+  // Only treat a 401 as an expired/missing session when a token was actually
+  // sent. Login/registration run without a token, where a 401 is a domain
+  // answer (wrong credentials) whose detail must reach the caller.
+  if (response.status === 401 && getToken()) {
+    clearToken();
+    if (window.location.pathname !== "/login") {
+      window.location.assign("/login");
+    }
+    throw new ApiError(401, "Nicht angemeldet");
   }
 
   if (!response.ok) {

@@ -1,12 +1,19 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
-import { getToken } from "../api/client";
-import type { UserOut } from "../api/auth";
+import { clearToken, getToken, setToken } from "../api/client";
+import {
+  deleteAccount as apiDeleteAccount,
+  login as apiLogin,
+  logout as apiLogout,
+  register as apiRegister,
+  type UserOut,
+} from "../api/auth";
 
 const USER_KEY = "auth_user";
 
@@ -32,10 +39,66 @@ function readStoredUser(): UserOut | null {
   }
 }
 
+function persistUser(user: UserOut | null): void {
+  try {
+    if (user) {
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(USER_KEY);
+    }
+  } catch {
+    // ignore storage failures (e.g. private mode) — the in-memory state still works
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token] = useState<string | null>(() => getToken());
-  const [user] = useState<UserOut | null>(() => readStoredUser());
+  const [token, setTokenState] = useState<string | null>(() => getToken());
+  const [user, setUserState] = useState<UserOut | null>(() => readStoredUser());
   const [loading] = useState(false);
+
+  const applyAuth = useCallback((accessToken: string, nextUser: UserOut) => {
+    setToken(accessToken);
+    persistUser(nextUser);
+    setTokenState(accessToken);
+    setUserState(nextUser);
+  }, []);
+
+  const clearAuth = useCallback(() => {
+    clearToken();
+    persistUser(null);
+    setTokenState(null);
+    setUserState(null);
+  }, []);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const res = await apiLogin(email, password);
+      applyAuth(res.access_token, res.user);
+    },
+    [applyAuth]
+  );
+
+  const register = useCallback(
+    async (email: string, password: string) => {
+      const res = await apiRegister(email, password);
+      applyAuth(res.access_token, res.user);
+    },
+    [applyAuth]
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      await apiLogout();
+    } catch {
+      // end the local session regardless of the server response
+    }
+    clearAuth();
+  }, [clearAuth]);
+
+  const deleteAccount = useCallback(async () => {
+    await apiDeleteAccount();
+    clearAuth();
+  }, [clearAuth]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -43,14 +106,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       isAuthenticated: Boolean(token),
       loading,
-      // Real authentication is implemented by ticket #10 (Login, Registrierung
-      // und Konto-Verwaltung). The token persistence plumbing is wired here.
-      login: async () => {},
-      register: async () => {},
-      logout: async () => {},
-      deleteAccount: async () => {},
+      login,
+      register,
+      logout,
+      deleteAccount,
     }),
-    [user, token, loading]
+    [user, token, loading, login, register, logout, deleteAccount]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
