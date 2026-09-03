@@ -113,6 +113,13 @@
   background: var(--color-surface_2);
 }
 
+.itemImagePlaceholder {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface_2);
+}
+
 .itemName {
   font-size: var(--size-sm);
   padding: 0 var(--space-1) var(--space-1);
@@ -154,6 +161,14 @@
   width: 96px;
   height: 128px;
   object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--color-surface_2);
+  border: 1px solid var(--color-border);
+}
+
+.previewImagePlaceholder {
+  width: 96px;
+  height: 128px;
   border-radius: var(--radius-md);
   background: var(--color-surface_2);
   border: 1px solid var(--color-border);

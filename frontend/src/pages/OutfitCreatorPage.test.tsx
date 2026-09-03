@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import OutfitCreatorPage from "./OutfitCreatorPage";
@@ -31,6 +31,8 @@ const mockedListCategories = vi.mocked(listCategories);
 const mockedCreateOutfit = vi.mocked(createOutfit);
 const mockedGetOutfit = vi.mocked(getOutfit);
 const mockedUpdateOutfit = vi.mocked(updateOutfit);
+
+let fetchMock: ReturnType<typeof vi.fn>;
 
 const itemOne: ClothingItemOut = {
   id: 1,
@@ -87,11 +89,29 @@ function renderEditPage() {
 describe("OutfitCreatorPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+    localStorage.setItem("auth_token", "test-token");
+    (URL as unknown as { createObjectURL: (b: Blob) => string }).createObjectURL =
+      vi.fn(() => "blob:mock");
+    (
+      URL as unknown as { revokeObjectURL: (url: string) => void }
+    ).revokeObjectURL = vi.fn();
+    fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      blob: async () => new Blob(["x"], { type: "image/png" }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
     mockedListWardrobe.mockResolvedValue([itemOne, itemTwo]);
     mockedListCategories.mockResolvedValue(categories);
     mockedCreateOutfit.mockResolvedValue(savedOutfit);
     mockedGetOutfit.mockResolvedValue(savedOutfit);
     mockedUpdateOutfit.mockResolvedValue(savedOutfit);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("wählt mehrere Teile aus und zeigt sie in der Vorschau", async () => {
@@ -120,6 +140,43 @@ describe("OutfitCreatorPage", () => {
 
     expect(screen.getByText("1 Teil ausgewählt")).toBeInTheDocument();
     expect(first).toHaveAttribute("aria-pressed", "false");
+
+    await waitFor(() => {
+      expect(document.querySelector('img[alt="Rote Schuhe"]')).not.toBeNull();
+    });
+  });
+
+  it("lädt Auswahlbilder mit Authorization-Header und rendert sie", async () => {
+    renderCreatePage();
+
+    await screen.findByRole("button", { name: "Schwarzes Kleid" });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/api/wardrobe/1/image",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+        }),
+      })
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/api/wardrobe/2/image",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+        }),
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        document.querySelectorAll('img[src="blob:mock"]').length
+      ).toBeGreaterThan(0);
+    });
   });
 
   it("speichert ein neues Outfit und zeigt eine Erfolgsmeldung", async () => {
@@ -195,6 +252,15 @@ describe("OutfitCreatorPage", () => {
     expect(alert).toHaveTextContent("Laden fehlgeschlagen");
   });
 
+  it("zeigt einen eigenen Fehlerzustand, wenn das Outfit nicht geladen werden kann", async () => {
+    mockedGetOutfit.mockRejectedValue(new Error("Outfit nicht gefunden"));
+    renderEditPage();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Outfit nicht gefunden");
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+  });
+
   it("zeigt einen Hinweis, wenn die Garderobe leer ist", async () => {
     mockedListWardrobe.mockResolvedValue([]);
     renderCreatePage();
@@ -202,7 +268,8 @@ describe("OutfitCreatorPage", () => {
     expect(
       await screen.findByText(/Deine Garderobe ist noch leer/)
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Lege zuerst Kleidungsstücke an/ }))
-      .toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Lege zuerst Kleidungsstücke an/ })
+    ).toBeInTheDocument();
   });
 });

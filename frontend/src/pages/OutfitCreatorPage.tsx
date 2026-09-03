@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
+import { getToken } from "../api/client";
 import { listCategories, type CategoryOut } from "../api/categories";
 import { createOutfit, getOutfit, updateOutfit } from "../api/outfits";
 import {
@@ -16,6 +17,65 @@ function errorMessage(error: unknown): string {
   return "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.";
 }
 
+function ItemImage({
+  itemId,
+  alt,
+  imageClass,
+  placeholderClass,
+}: {
+  itemId: number;
+  alt: string;
+  imageClass: string;
+  placeholderClass: string;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    const token = getToken();
+
+    async function load() {
+      try {
+        const response = await fetch(wardrobeImageUrl(itemId), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!response.ok) {
+          if (!cancelled) setFailed(true);
+          return;
+        }
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) setUrl(objectUrl);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [itemId]);
+
+  if (url) {
+    return <img className={imageClass} src={url} alt={alt} />;
+  }
+
+  return (
+    <div
+      className={placeholderClass}
+      role="img"
+      aria-label={failed ? "Bild nicht verfügbar" : alt || "Bild wird geladen"}
+    />
+  );
+}
+
 export default function OutfitCreatorPage() {
   const { id } = useParams<{ id: string }>();
   const editId = id ? Number(id) : null;
@@ -28,6 +88,7 @@ export default function OutfitCreatorPage() {
   const [filterCategory, setFilterCategory] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -37,7 +98,7 @@ export default function OutfitCreatorPage() {
 
     async function load() {
       setLoading(true);
-      setError(null);
+      setLoadError(null);
       try {
         const [wardrobeItems, cats] = await Promise.all([
           listWardrobe(),
@@ -54,7 +115,7 @@ export default function OutfitCreatorPage() {
           setSelectedIds(outfit.items.map((item) => item.id));
         }
       } catch (err) {
-        if (!cancelled) setError(errorMessage(err));
+        if (!cancelled) setLoadError(errorMessage(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -140,9 +201,18 @@ export default function OutfitCreatorPage() {
         <p role="status" className={styles.loading}>
           Wird geladen…
         </p>
-      ) : error != null && items.length === 0 ? (
-        <div role="alert" className={`${styles.feedback} ${styles.feedbackError}`}>
-          {error}
+      ) : loadError != null ? (
+        <div className="empty-state">
+          <div className="empty-state__icon" aria-hidden="true">
+            !
+          </div>
+          <h2 className="empty-state__title">Fehler beim Laden</h2>
+          <p className="empty-state__desc" role="alert">
+            {loadError}
+          </p>
+          <Link to="/outfits" className="btn btn-primary">
+            Zurück zur Übersicht
+          </Link>
         </div>
       ) : (
         <form className={styles.form} onSubmit={(event) => void handleSubmit(event)}>
@@ -237,10 +307,11 @@ export default function OutfitCreatorPage() {
                       aria-label={item.name}
                       onClick={() => toggleItem(item.id)}
                     >
-                      <img
-                        className={styles.itemImage}
-                        src={wardrobeImageUrl(item.id)}
+                      <ItemImage
+                        itemId={item.id}
                         alt=""
+                        imageClass={styles.itemImage}
+                        placeholderClass={styles.itemImagePlaceholder}
                       />
                       {selected && (
                         <span className={styles.check} aria-hidden="true">
@@ -266,10 +337,11 @@ export default function OutfitCreatorPage() {
               <ul className={styles.preview}>
                 {selectedItems.map((item) => (
                   <li key={item.id} className={styles.previewItem}>
-                    <img
-                      className={styles.previewImage}
-                      src={wardrobeImageUrl(item.id)}
+                    <ItemImage
+                      itemId={item.id}
                       alt={item.name}
+                      imageClass={styles.previewImage}
+                      placeholderClass={styles.previewImagePlaceholder}
                     />
                     <span className={styles.previewName}>{item.name}</span>
                   </li>
